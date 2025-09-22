@@ -166,7 +166,7 @@ logthis(char *file, const char *function, int line, int ifverbose,int h, int n, 
       fflush(f);
 
       if (syslog_enabled)
-        syslog(LOG_DAEMON|LOG_INFO, line_buffer);
+        syslog(LOG_DAEMON|LOG_INFO, "%s", line_buffer);
 
       if (stdout_enabled)
         printf("%s", line_buffer);
@@ -497,7 +497,7 @@ char *str_char(unsigned char c)
   static char s[8];
 
 
-  if (c >= 32 && 126)
+  if (c >= 32 && c <= 126)
     {
       sprintf(s,"'%c' ", c);
       return s;

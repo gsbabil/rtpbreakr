@@ -202,28 +202,34 @@ int rtp_pkt_handle(pktrtp_t *pktrtp, addrs_t addrs)
 int
 dissect_udp(struct pcap_pkt *ppkt, u_int32_t pktoff, u_int32_t pktlen, addrs_t addrs)
 {
-  struct libnet_udp_hdr *pktudp;
-  int32_t len;
+    struct libnet_udp_hdr *pktudp;
+    int32_t len;
 
+    // Make sure we have at least a UDP header
+    if (pktlen < sizeof(struct libnet_udp_hdr))
+        return 0;
 
-  if (pktlen < sizeof(struct udphdr))
-    return 0;
+    // Cast packet data to UDP header
+    pktudp = (struct libnet_udp_hdr *)(ppkt->pkt + pktoff);
 
-  pktudp = (struct libnet_udp_hdr *) (ppkt->pkt +  pktoff);
+    // Calculate UDP payload length
+    len = pktlen - sizeof(struct libnet_udp_hdr);
 
-  len = pktlen - sizeof(struct udphdr);
+    // Validate UDP length from header
+    if (len != ntohs(pktudp->uh_ulen) - sizeof(struct libnet_udp_hdr))
+        return 0;
 
-  if (len != ntohs(pktudp->uh_ulen)-sizeof(struct udphdr))
-    return 0;
+    // Fill in address info
+    addrs.type = ADDRS_TYPE_UDP;
+    addrs.srcport = ntohs(pktudp->uh_sport);
+    addrs.dstport = ntohs(pktudp->uh_dport);
 
-  addrs.type = ADDRS_TYPE_UDP;
-  addrs.srcport = ntohs(pktudp->uh_sport);
-  addrs.dstport = ntohs(pktudp->uh_dport);
+    // Optional logging (commented out)
+    // LOG(1,0,"ip: %s:%d > ", INET_NTOA(addrs.srcaddr), addrs.srcport);
+    // LOG(0,1,"%s:%d", INET_NTOA(addrs.dstaddr), addrs.dstport);
 
-//  LOG(1,0,"ip: %s:%d > ",INET_NTOA(addrs.srcaddr),addrs.srcport);
-//  LOG(0,1,"%s:%d",INET_NTOA(addrs.dstaddr),addrs.dstport);
-
-  return dissect_rtp(ppkt,pktoff+sizeof(struct libnet_udp_hdr),len,addrs);
+    // Pass UDP payload to RTP dissector
+    return dissect_rtp(ppkt, pktoff + sizeof(struct libnet_udp_hdr), len, addrs);
 }
 
 
@@ -1361,7 +1367,7 @@ void rtp_stream_close(struct rtp_stream_entry *rtp_stream)
   // Execute command, if any
   if (o.dump_wav && strstr(find_stream_rtp_pt(rtp_stream->payload_type,1), "?") == NULL) {
 	  LOG(1,1,"Converting %s (%s) to WAV, PNG", find_stream_rtp_pt(rtp_stream->payload_type,0), find_stream_rtp_pt(rtp_stream->payload_type,1) );
-	  // LOG(1,1,"Debug Command: %s", rtp_stream->command);
+	  LOG(1,1,"Debug Command: %s", rtp_stream->command);
 	  system(rtp_stream->command);
   }
 
@@ -1458,6 +1464,7 @@ void sig_stats_handler(int signo)
 
     n++;
     s =rtp_stream->last_pkt.tv_sec - rtp_stream->first_pkt.tv_sec;
+    LOG(1,1,"  Duration: %d seconds", s);
     LOG(1,0," + [rtp%d] stats: ", rtp_stream->fid);
     print_stream_stat(rtp_stream);
   }
